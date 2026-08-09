@@ -61,4 +61,7 @@ fi
 export GOCACHE="${ROOT}/.gocache"
 mkdir -p "${GOCACHE}"
 
+# Ensure Spin Go SDK (and its embedded WIT) is in the module cache.
+go mod download
+
 exec "${COMPONENTIZE_BIN}" build --go "${PATCHED_GO}" "$@"
