@@ -129,6 +129,22 @@
         "reveal": "always",
         "panel": "shared"
       }
+    },
+    {
+      "label": "spin: aka deploy",
+      "type": "shell",
+      "command": "spin build && spin aka deploy --no-confirm --create-name spin-polyglot",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "CARGO_TARGET_DIR": "target"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }

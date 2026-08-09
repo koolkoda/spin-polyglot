@@ -1,0 +1,108 @@
+name: Deploy Akamai
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-akamai-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SPIN_VERSION: "v4.0.2"
+  GO_VERSION: "1.25.5"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deploy:
+    name: Deploy to Akamai Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Require Akamai token
+        env:
+          SPIN_AKA_ACCESS_TOKEN: ${{ secrets.SPIN_AKA_ACCESS_TOKEN }}
+        run: |
+          if [ -z "${SPIN_AKA_ACCESS_TOKEN}" ]; then
+            echo "::error::Add repository secret SPIN_AKA_ACCESS_TOKEN (spin aka auth token create)."
+            exit 1
+          fi
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Spin
+        uses: fermyon/actions/spin/setup@v1
+        with:
+          version: ${{ env.SPIN_VERSION }}
+          plugins: aka
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          targets: wasm32-wasip2
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Build Spin application
+        run: spin build
+
+      - name: Login to Akamai Functions
+        env:
+          SPIN_AKA_ACCESS_TOKEN: ${{ secrets.SPIN_AKA_ACCESS_TOKEN }}
+        run: spin aka login --token "${SPIN_AKA_ACCESS_TOKEN}"
+
+      - name: Deploy to Akamai Functions
+        env:
+          SPIN_AKA_APP_ID: ${{ secrets.SPIN_AKA_APP_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SPIN_AKA_APP_ID:-}" ]; then
+            echo "Deploying to existing app id ${SPIN_AKA_APP_ID}"
+            spin aka deploy --no-confirm --app-id "${SPIN_AKA_APP_ID}" --from spin.toml
+          else
+            echo "No SPIN_AKA_APP_ID secret; creating/updating app named spin-polyglot"
+            # Prefer an existing app with this name when present (avoids duplicate apps).
+            if command -v jq >/dev/null; then
+              EXISTING_ID="$(spin aka app list --format json 2>/dev/null | jq -r '
+                (if type == "array" then . else (.apps // .data // .) end)
+                | if type == "array" then
+                    [.[] | select((.name // .app_name // "") == "spin-polyglot") | (.id // .app_id // empty)]
+                    | first // empty
+                  else empty end
+              ' || true)"
+            else
+              EXISTING_ID=""
+            fi
+            if [ -n "${EXISTING_ID:-}" ]; then
+              echo "Found existing app id ${EXISTING_ID}"
+              spin aka deploy --no-confirm --app-id "${EXISTING_ID}" --from spin.toml
+            else
+              spin aka deploy --no-confirm --create-name spin-polyglot --from spin.toml
+            fi
+          fi

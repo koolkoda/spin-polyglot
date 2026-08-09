@@ -61,7 +61,7 @@ rust/              # Rust HTTP component
 go/                # Go HTTP component
 python/            # Python HTTP component
 typescript/        # TypeScript HTTP component
-.github/workflows/ # CI build + smoke tests
+.github/workflows/ # CI + Akamai deploy
 ```
 
 ## Adding a component
@@ -84,5 +84,42 @@ Workspace configs live in `.vscode/`:
 | Live reload | Run and Debug → **Spin: Watch** |
 | Debug TypeScript | Install **StarlingMonkey Debugger**, then F5 → **Debug: TypeScript** |
 | Hit all routes | Terminal → Run Task → **spin: request all routes** |
+| Deploy Akamai | Terminal → Run Task → **spin: aka deploy** (after `spin aka login`) |
 
 Recommended extensions are listed in `.vscode/extensions.json` (Spin, StarlingMonkey, rust-analyzer, Go, Python).
+
+## Deploy to Akamai Functions
+
+Hosted edge deploy via the [`aka`](https://techdocs.akamai.com/akamai-functions/docs/aka-command-reference) Spin plugin.
+
+### One-time setup
+
+```bash
+spin plugins update
+spin plugins install aka -y
+spin aka login
+spin aka auth token create --name github-actions --expiration-days 90
+```
+
+Add the printed token as a GitHub Actions secret named **`SPIN_AKA_ACCESS_TOKEN`**:
+
+```bash
+gh secret set SPIN_AKA_ACCESS_TOKEN
+```
+
+After the first successful deploy, copy the app id from the CLI output (or `spin aka app list`) into an optional secret **`SPIN_AKA_APP_ID`** so later CI runs update the same app:
+
+```bash
+gh secret set SPIN_AKA_APP_ID
+```
+
+### Local deploy
+
+```bash
+spin build
+spin aka deploy --no-confirm --create-name spin-polyglot
+```
+
+### CI deploy
+
+On every push to `main`/`master`, [`.github/workflows/deploy-akamai.yml`](.github/workflows/deploy-akamai.yml) builds the app and runs `spin aka deploy` when `SPIN_AKA_ACCESS_TOKEN` is set. You can also run it manually from the Actions tab (**workflow_dispatch**).
