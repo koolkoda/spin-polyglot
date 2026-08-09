@@ -1,0 +1,136 @@
+name: Deploy GCP
+
+on:
+  workflow_dispatch:
+  # Uncomment after infra is up if you want auto-deploy on main:
+  # push:
+  #   branches: [main, master]
+  #   paths-ignore:
+  #     - "**.md"
+  #     - ".vscode/**"
+
+concurrency:
+  group: deploy-gcp-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  SPIN_VERSION: "v4.0.2"
+  GO_VERSION: "1.25.5"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  CARGO_TERM_COLOR: always
+  GCP_PROJECT: spin-polyglot
+  GCP_REGION: europe-west2
+  GKE_CLUSTER: spin-polyglot
+  ARTIFACT_REGISTRY: europe-west2-docker.pkg.dev/spin-polyglot/spin-apps
+  IMAGE_NAME: spin-polyglot
+  LOCAL_REG_PORT: "5001"
+
+jobs:
+  deploy:
+    name: Build, push, deploy SpinApp
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GCP_REGION }}
+          project_id: ${{ env.GCP_PROJECT }}
+
+      - name: Setup Spin
+        uses: fermyon/actions/spin/setup@v1
+        with:
+          version: ${{ env.SPIN_VERSION }}
+          plugins: kube
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          targets: wasm32-wasip2
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Install oras
+        uses: oras-project/setup-oras@v1
+
+      - name: Build Spin application
+        run: spin build
+
+      - name: Push OCI artifact to Artifact Registry
+        run: |
+          set -euo pipefail
+          IMAGE="${ARTIFACT_REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          IMAGE_LATEST="${ARTIFACT_REGISTRY}/${IMAGE_NAME}:latest"
+          LOCAL_REF="127.0.0.1:${LOCAL_REG_PORT}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+          docker run -d --rm --name spin-local-reg -p "${LOCAL_REG_PORT}:5000" registry:2
+          for _ in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:${LOCAL_REG_PORT}/v2/" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          # spin registry push to Artifact Registry can fail with
+          # "could not clone request builder"; push local then oras copy.
+          spin registry push --insecure "${LOCAL_REF}"
+          gcloud auth print-access-token | oras login europe-west2-docker.pkg.dev \
+            -u oauth2accesstoken --password-stdin
+          oras copy --from-plain-http "${LOCAL_REF}" "${IMAGE}"
+          oras copy "${IMAGE}" "${IMAGE_LATEST}"
+
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          echo "IMAGE_LATEST=${IMAGE_LATEST}" >> "$GITHUB_ENV"
+
+      - name: Deploy SpinApp
+        run: |
+          set -euo pipefail
+          if ! kubectl get spinappexecutor containerd-shim-spin >/dev/null 2>&1; then
+            echo "::error::SpinKube is not installed on the cluster. Run the infra deploy workflow in koolkoda/spin-polyglot-infra first."
+            exit 1
+          fi
+          spin kube scaffold --from "${IMAGE}" --out spinapp.yaml
+          kubectl apply -f spinapp.yaml
+          kubectl rollout status deployment/spin-polyglot --timeout=5m || true
+          kubectl get spinapp,pods,svc -l 'core.spinkube.dev/app-name=spin-polyglot' -o wide

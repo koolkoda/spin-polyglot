@@ -61,7 +61,7 @@ rust/              # Rust HTTP component
 go/                # Go HTTP component
 python/            # Python HTTP component
 typescript/        # TypeScript HTTP component
-.github/workflows/ # CI + Akamai deploy
+.github/workflows/ # CI + Akamai + GCP deploy
 ```
 
 ## Adding a component
@@ -128,11 +128,26 @@ On every push to `main`/`master`, [`.github/workflows/deploy-akamai.yml`](.githu
 
 ## Deploy on Google Cloud (GKE + SpinKube)
 
-Infrastructure lives in a sibling repo: [`spin-polyglot-infra`](https://github.com/koolkoda/spin-polyglot-infra) (Pulumi, region **`europe-west2`**).
+Infrastructure lives in [`spin-polyglot-infra`](https://github.com/koolkoda/spin-polyglot-infra) (Pulumi, region **`europe-west2`**).
+
+### From GitHub Actions
+
+1. **Create cluster + SpinKube**  
+   In `spin-polyglot-infra` → **Actions → Infra → Run workflow** → `up`  
+   (~15–25 minutes; costs money while running)
+
+2. **Deploy this app**  
+   In this repo → **Actions → Deploy GCP → Run workflow**  
+   Builds all language components, pushes the OCI artifact to Artifact Registry, applies the `SpinApp`.
+
+Repo variables (already set): `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`.
+
+### Local
 
 ```bash
 cd ../spin-polyglot-infra
-pulumi config set gcp:project YOUR_GCP_PROJECT_ID
+export PULUMI_CONFIG_PASSPHRASE='spin-polyglot-dev'
+pulumi login gs://spin-polyglot-pulumi-state
 pulumi up
 ./scripts/deploy-app.sh
 ```
