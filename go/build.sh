@@ -7,9 +7,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-CACHE_ROOT="${HOME}/Library/Caches"
-COMPONENTIZE_BIN="${CACHE_ROOT}/com.github.bytecodealliance-componentize-go/bin/componentize-go"
-PATCHED_GO="${CACHE_ROOT}/componentize-go/v2/go-darwin-arm64-bootstrap/bin/go"
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+
+case "${OS}" in
+  Darwin) CACHE_HOME="${HOME}/Library/Caches"; GO_OS="darwin" ;;
+  Linux)  CACHE_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}"; GO_OS="linux" ;;
+  *)
+    echo "error: unsupported OS: ${OS}" >&2
+    exit 1
+    ;;
+esac
+
+case "${ARCH}" in
+  arm64|aarch64) GO_ARCH="arm64" ;;
+  x86_64|amd64)  GO_ARCH="amd64" ;;
+  *)
+    echo "error: unsupported arch: ${ARCH}" >&2
+    exit 1
+    ;;
+esac
+
+COMPONENTIZE_BIN="${CACHE_HOME}/com.github.bytecodealliance-componentize-go/bin/componentize-go"
+PATCHED_ROOT="${CACHE_HOME}/componentize-go/v2/go-${GO_OS}-${GO_ARCH}-bootstrap"
+PATCHED_GO="${PATCHED_ROOT}/bin/go"
 
 # Ensure the release binary is cached (go tool downloads it on first run).
 if [[ ! -x "${COMPONENTIZE_BIN}" ]]; then
@@ -19,7 +40,7 @@ fi
 # Ensure the patched Go toolchain is present.
 if [[ ! -x "${PATCHED_GO}" ]]; then
   echo "Downloading patched Go toolchain for componentize-go..."
-  # componentize-go downloads the toolchain before compiling; ignore compile errors.
+  # First build seeds the toolchain cache; ignore compile errors from a shared GOCACHE.
   "${COMPONENTIZE_BIN}" build >/dev/null 2>&1 || true
 fi
 
