@@ -123,3 +123,16 @@ spin aka deploy --no-confirm --create-name spin-polyglot
 ### CI deploy
 
 On every push to `main`/`master`, [`.github/workflows/deploy-akamai.yml`](.github/workflows/deploy-akamai.yml) builds the app and runs `spin aka deploy` when `SPIN_AKA_ACCESS_TOKEN` is set. You can also run it manually from the Actions tab (**workflow_dispatch**).
+
+> **Note:** Akamai Functions requires an allow-listed account. If you are not allow-listed yet, use the GCP path below.
+
+## Deploy on Google Cloud (GKE + SpinKube)
+
+Infrastructure lives in a sibling repo: [`spin-polyglot-infra`](https://github.com/koolkoda/spin-polyglot-infra) (Pulumi, region **`europe-west2`**).
+
+```bash
+cd ../spin-polyglot-infra
+pulumi config set gcp:project YOUR_GCP_PROJECT_ID
+pulumi up
+./scripts/deploy-app.sh
+```
