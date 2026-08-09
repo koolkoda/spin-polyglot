@@ -1,0 +1,35 @@
+{
+  "files.exclude": {
+    "**/.spin": true,
+    "**/node_modules": true,
+    "rust/target": true,
+    "typescript/build": true,
+    "**/__pycache__": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "rust/target": true,
+    "typescript/dist": true,
+    "typescript/build": true,
+    "**/*.wasm": true
+  },
+  "rust-analyzer.linkedProjects": [
+    "rust/Cargo.toml"
+  ],
+  "rust-analyzer.cargo.target": "wasm32-wasip2",
+  "python.analysis.extraPaths": [
+    "python"
+  ],
+  "starlingmonkey": {
+    "componentRuntime": {
+      "executable": "spin",
+      "options": [
+        "up",
+        "-f",
+        "${workspaceFolder}",
+        "--listen",
+        "127.0.0.1:3000"
+      ]
+    }
+  }
+}

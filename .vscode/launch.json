@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Spin: Up",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "spin up --listen 127.0.0.1:3000",
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "spin: build"
+    },
+    {
+      "name": "Spin: Watch",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "spin watch --listen 127.0.0.1:3000",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "CARGO_TARGET_DIR": "target"
+      }
+    },
+    {
+      "name": "Spin: Up (no rebuild)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "spin up --listen 127.0.0.1:3000",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Debug: TypeScript",
+      "type": "starlingmonkey",
+      "request": "launch",
+      "component": "${workspaceFolder}/typescript/dist/typescript.wasm",
+      "program": "${workspaceFolder}/typescript/src/index.ts",
+      "stopOnEntry": false,
+      "trace": true,
+      "preLaunchTask": "spin: build (debug)"
+    }
+  ]
+}

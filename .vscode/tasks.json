@@ -1,0 +1,134 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "spin: build",
+      "type": "shell",
+      "command": "spin build",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "CARGO_TARGET_DIR": "target"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$rustc", "$tsc"]
+    },
+    {
+      "label": "spin: build (debug)",
+      "type": "shell",
+      "command": "spin build --profile debug",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "CARGO_TARGET_DIR": "target"
+        }
+      },
+      "group": "build",
+      "problemMatcher": ["$rustc", "$tsc"]
+    },
+    {
+      "label": "spin: up",
+      "type": "shell",
+      "command": "spin up --listen 127.0.0.1:3000",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "spin",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "file": 1,
+          "location": 1,
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Serving http://"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "spin: build and up",
+      "dependsOn": ["spin: build"],
+      "dependsOrder": "sequence",
+      "type": "shell",
+      "command": "spin up --listen 127.0.0.1:3000",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "spin",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "file": 1,
+          "location": 1,
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Serving http://"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "spin: watch",
+      "type": "shell",
+      "command": "spin watch --listen 127.0.0.1:3000",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "CARGO_TARGET_DIR": "target"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "spin",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "file": 1,
+          "location": 1,
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Serving http://"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "spin: request all routes",
+      "type": "shell",
+      "command": "curl -s http://127.0.0.1:3000/rust/ && echo && curl -s http://127.0.0.1:3000/go/ && echo && curl -s http://127.0.0.1:3000/python/ && echo && curl -s http://127.0.0.1:3000/typescript/ && echo",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

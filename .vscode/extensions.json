@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "fermyon.spin-vscode",
+    "BytecodeAlliance.starlingmonkey-debugger",
+    "rust-lang.rust-analyzer",
+    "golang.go",
+    "ms-python.python",
+    "ms-python.vscode-pylance"
+  ]
+}
