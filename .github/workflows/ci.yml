@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SPIN_VERSION: "4.0.2"
+  GO_VERSION: "1.25.5"
+  NODE_VERSION: "22"
+  PYTHON_VERSION: "3.12"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build & smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Spin
+        uses: spinframework/actions/spin/setup@v1
+        with:
+          version: ${{ env.SPIN_VERSION }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.93.0
+        with:
+          targets: wasm32-wasip2
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust -> target
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+
+      - name: Build Spin application
+        run: spin build
+
+      - name: Smoke test HTTP components
+        run: |
+          set -euo pipefail
+          spin up --listen 127.0.0.1:3000 &
+          SPIN_PID=$!
+          trap 'kill "$SPIN_PID" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:3000/rust/" >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          assert_component() {
+            local route="$1"
+            local expected="$2"
+            local body
+            body="$(curl -sf "http://127.0.0.1:3000${route}")"
+            echo "${route} -> ${body}"
+            echo "${body}" | jq -e --arg c "${expected}" '
+              .component == $c and .message == "Hello from Spin" and (.path | type == "string")
+            ' >/dev/null
+          }
+
+          assert_component "/rust/" "rust"
+          assert_component "/go/" "go"
+          assert_component "/python/" "python"
+          assert_component "/typescript/" "typescript"

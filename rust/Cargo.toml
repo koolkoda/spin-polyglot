@@ -1,0 +1,17 @@
+[package]
+name = "rust"
+authors = ["Yomi Alalade <abayomi.alalade@gmail.com>"]
+description = "Spin HTTP component implemented in Rust"
+version = "0.1.0"
+rust-version = "1.93"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1"
+serde_json = "1"
+spin-sdk = "6.0.0"
+
+[workspace]

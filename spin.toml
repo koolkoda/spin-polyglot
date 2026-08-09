@@ -1,0 +1,70 @@
+spin_manifest_version = 2
+
+[application]
+name = "spin-polyglot"
+version = "0.1.0"
+authors = ["Yomi Alalade <abayomi.alalade@gmail.com>"]
+description = "Lean Spin HTTP app with Rust, Go, Python, and TypeScript components"
+
+[[trigger.http]]
+route = "/rust/..."
+component = "rust"
+
+[component.rust]
+source = "rust/target/wasm32-wasip2/release/rust.wasm"
+allowed_outbound_hosts = []
+
+[component.rust.build]
+command = "CARGO_TARGET_DIR=target cargo build --target wasm32-wasip2 --release"
+workdir = "rust"
+watch = ["src/**/*.rs", "Cargo.toml"]
+
+[[trigger.http]]
+route = "/go/..."
+component = "go"
+
+[component.go]
+source = "go/main.wasm"
+allowed_outbound_hosts = []
+
+[component.go.build]
+command = "./build.sh"
+workdir = "go"
+watch = ["**/*.go", "go.mod", "build.sh"]
+
+[[trigger.http]]
+route = "/python/..."
+component = "python"
+
+[component.python]
+source = "python/app.wasm"
+allowed_outbound_hosts = []
+
+[component.python.build]
+command = "./build.sh"
+workdir = "python"
+watch = ["*.py", "requirements.txt", "build.sh"]
+
+[[trigger.http]]
+route = "/typescript/..."
+component = "typescript"
+
+[component.typescript]
+source = "typescript/dist/typescript.wasm"
+# localhost allowed so StarlingMonkey can attach when using the debug profile.
+allowed_outbound_hosts = ["tcp://127.0.0.1:*"]
+
+[component.typescript.build]
+command = "npm ci && npm run build"
+workdir = "typescript"
+watch = ["src/**/*.ts", "package.json", "package-lock.json", "build.mjs", "tsconfig.json"]
+
+# Debug profile enables StarlingMonkey script debugging (F5 → Debug: TypeScript).
+[component.typescript.profile.debug.build]
+command = "npm ci && npm run build:debug"
+
+[component.rust.profile.debug]
+source = "rust/target/wasm32-wasip2/debug/rust.wasm"
+
+[component.rust.profile.debug.build]
+command = "CARGO_TARGET_DIR=target cargo build --target wasm32-wasip2"
