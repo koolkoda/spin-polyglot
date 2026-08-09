@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Reliable Go → Wasm build for Spin.
-# Uses componentize-go's patched Go with an isolated GOCACHE to avoid
-# wasiOnIdle relocation failures from sharing cache with the host toolchain.
+# Reliable Go → Wasm build for Spin (macOS + Linux CI).
+# Downloads componentize-go + its patched Go toolchain explicitly, then builds
+# with an isolated GOCACHE to avoid wasiOnIdle relocation failures.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,25 +28,33 @@ case "${ARCH}" in
     ;;
 esac
 
-COMPONENTIZE_BIN="${CACHE_HOME}/com.github.bytecodealliance-componentize-go/bin/componentize-go"
-PATCHED_ROOT="${CACHE_HOME}/componentize-go/v2/go-${GO_OS}-${GO_ARCH}-bootstrap"
-PATCHED_GO="${PATCHED_ROOT}/bin/go"
+COMPONENTIZE_VERSION="v0.3.3"
+COMPONENTIZE_DIR="${CACHE_HOME}/com.github.bytecodealliance-componentize-go/bin"
+COMPONENTIZE_BIN="${COMPONENTIZE_DIR}/componentize-go"
 
-# Ensure the release binary is cached (go tool downloads it on first run).
+PATCHED_CACHE="${CACHE_HOME}/componentize-go/v2"
+PATCHED_NAME="go-${GO_OS}-${GO_ARCH}-bootstrap"
+PATCHED_GO="${PATCHED_CACHE}/${PATCHED_NAME}/bin/go"
+
+mkdir -p "${COMPONENTIZE_DIR}" "${PATCHED_CACHE}"
+
 if [[ ! -x "${COMPONENTIZE_BIN}" ]]; then
-  go tool componentize-go --help >/dev/null
+  echo "Downloading componentize-go ${COMPONENTIZE_VERSION}..."
+  curl -fsSL \
+    "https://github.com/bytecodealliance/componentize-go/releases/download/${COMPONENTIZE_VERSION}/componentize-go-${GO_OS}-${GO_ARCH}.tar.gz" \
+    | tar -xz -C "${COMPONENTIZE_DIR}"
+  chmod +x "${COMPONENTIZE_BIN}"
 fi
 
-# Ensure the patched Go toolchain is present.
 if [[ ! -x "${PATCHED_GO}" ]]; then
-  echo "Downloading patched Go toolchain for componentize-go..."
-  # First build seeds the toolchain cache; ignore compile errors from a shared GOCACHE.
-  "${COMPONENTIZE_BIN}" build >/dev/null 2>&1 || true
+  echo "Downloading patched Go toolchain (${PATCHED_NAME})..."
+  curl -fsSL \
+    "https://github.com/dicej/go/releases/download/go1.25.5-wasi-on-idle-v2/${PATCHED_NAME}.tbz" \
+    | tar -xj -C "${PATCHED_CACHE}"
 fi
 
 if [[ ! -x "${PATCHED_GO}" ]]; then
   echo "error: patched Go not found at ${PATCHED_GO}" >&2
-  echo "hint: run 'go tool componentize-go build' once to seed the cache" >&2
   exit 1
 fi
 
